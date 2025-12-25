@@ -17,7 +17,7 @@ jobs:
 
     env:
       APP_NAME: CodexzierDirectSight
-      PROJECT_PATH: src/CodexzierDirectSight.Worker/CodexzierDirectSight.Worker.csproj
+      PROJECT_PATH: src/CodexzierDirectSight/CodexzierDirectSight.csproj
       RUNTIME: linux-arm64
       CONFIGURATION: Release
 
