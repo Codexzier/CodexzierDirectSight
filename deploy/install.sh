@@ -63,7 +63,7 @@ WorkingDirectory=$INSTALL_DIR
 Restart=always
 RestartSec=5
 KillSignal=SIGINT
-SyslogIdentifier=myapp
+SyslogIdentifier=CodexzierDirectSight
 User=root
 
 [Install]
