@@ -1,28 +1,58 @@
 # This workflow will build a .NET project
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
 
-name: .NET
+name: Release Codexzier DirectSight
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
 
 jobs:
-  build:
-
+  build-release:
     runs-on: ubuntu-latest
 
+    env:
+      APP_NAME: CodexzierDirectSight
+      PROJECT_PATH: src/CodexzierDirectSight.Worker/CodexzierDirectSight.Worker.csproj
+      RUNTIME: linux-arm64
+      CONFIGURATION: Release
+
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout source 
+      uses: actions/checkout@v4
+      
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
+        
     - name: Restore dependencies
-      run: dotnet restore
-    - name: Build
-      run: dotnet build --no-restore
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+      run: dotnet restore $PROJECT_PATH
+
+    - name: Publish (self-contained)
+      run: |
+          dotnet publish $PROJECT_PATH \
+            -c $CONFIGURATION \
+            -r $RUNTIME \
+            --self-contained true \
+            /p:PublishSingleFile=true \
+            /p:PublishTrimmed=false \
+            -o publish
+
+    - name: Prepare artifact
+      run: |
+          mkdir -p artifact
+          cp -r publish/* artifact/
+          echo "${GITHUB_REF_NAME}" > artifact/VERSION
+          tar -czf codexzierdirectsight-linux-arm64.tar.gz -C artifact .
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+          files: codexzierdirectsight-linux-arm64.tar.gz
+          name: Release ${{ github.ref_name }}
+          generate_release_notes: true
