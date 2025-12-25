@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -e
 
-APP_NAME="myapp"
+APP_NAME="CodexzierDirectSight"
 INSTALL_DIR="/opt/myapp"
-SERVICE_FILE="/etc/systemd/system/myapp.service"
+SERVICE_FILE="/etc/systemd/system/CodexzierDirectSight.service"
 GITHUB_REPO="ORG/REPO"
 ARCH="linux-arm64"
-TMP_DIR="/tmp/myapp-install"
+TMP_DIR="/tmp/CodexzierDirectSight-install"
 
 echo "== Installing $APP_NAME =="
 
@@ -29,7 +29,7 @@ mkdir -p "$INSTALL_DIR"
 
 # Latest Release URL ermitteln
 echo "Fetching latest release info..."
-DOWNLOAD_URL=$(curl -s https://api.github.com/repos/$GITHUB_REPO/releases/latest \
+DOWNLOAD_URL=$(curl -s https://github.com/Codexzier/CodexzierDirectSight/commits/latest \
   | grep browser_download_url \
   | grep "$ARCH" \
   | cut -d '"' -f 4)
@@ -41,24 +41,24 @@ fi
 
 # Download
 echo "Downloading $DOWNLOAD_URL"
-curl -L "$DOWNLOAD_URL" -o "$TMP_DIR/myapp.tar.gz"
+curl -L "$DOWNLOAD_URL" -o "$TMP_DIR/CodexzierDirectSight-linux-arm64.tar.gz"
 
 # Stop Service (falls vorhanden)
 systemctl stop myapp 2>/dev/null || true
 
 # Entpacken
-tar -xzf "$TMP_DIR/myapp.tar.gz" -C "$INSTALL_DIR"
+tar -xzf "$TMP_DIR/CodexzierDirectSight.tar.gz" -C "$INSTALL_DIR"
 
-chmod +x "$INSTALL_DIR/MyApp.Worker"
+chmod +x "$INSTALL_DIR/CodexzierDirectSight"
 
 # systemd Service installieren
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=MyApp Worker Service
+Description=CodexzierDirectSight Worker Service
 After=network.target
 
 [Service]
-ExecStart=$INSTALL_DIR/MyApp.Worker
+ExecStart=$INSTALL_DIR/CodexzierDirectSight
 WorkingDirectory=$INSTALL_DIR
 Restart=always
 RestartSec=5
