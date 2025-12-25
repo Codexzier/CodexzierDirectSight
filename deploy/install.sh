@@ -4,7 +4,7 @@ set -e
 APP_NAME="CodexzierDirectSight"
 INSTALL_DIR="/opt/myapp"
 SERVICE_FILE="/etc/systemd/system/CodexzierDirectSight.service"
-GITHUB_REPO="ORG/REPO"
+GITHUB_REPO="Codexzier/CodexzierDirectSight"
 ARCH="linux-arm64"
 TMP_DIR="/tmp/CodexzierDirectSight-install"
 
@@ -29,9 +29,9 @@ mkdir -p "$INSTALL_DIR"
 
 # Latest Release URL ermitteln
 echo "Fetching latest release info..."
-DOWNLOAD_URL=$(curl -s https://github.com/Codexzier/CodexzierDirectSight/commits/latest \
+DOWNLOAD_URL=$(curl -s https://api.github.com/repos/$GITHUB_REPO/releases/latest \
   | grep browser_download_url \
-  | grep "$ARCH" \
+  | grep "linux-arm64" \
   | cut -d '"' -f 4)
 
 if [ -z "$DOWNLOAD_URL" ]; then
