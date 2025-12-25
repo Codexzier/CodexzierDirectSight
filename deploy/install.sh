@@ -2,8 +2,9 @@
 set -e
 
 APP_NAME="CodexzierDirectSight"
-INSTALL_DIR="/opt/myapp"
-SERVICE_FILE="/etc/systemd/system/CodexzierDirectSight.service"
+SERVICE_NAME="codexzierdirectsight"
+INSTALL_DIR="/opt/$SERVICE_NAME"
+SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 GITHUB_REPO="Codexzier/CodexzierDirectSight"
 ARCH="linux-arm64"
 TMP_DIR="/tmp/CodexzierDirectSight-install"
@@ -44,7 +45,7 @@ echo "Downloading $DOWNLOAD_URL"
 curl -L "$DOWNLOAD_URL" -o "$TMP_DIR/app.tar.gz"
 
 # Stop Service (falls vorhanden)
-systemctl stop myapp 2>/dev/null || true
+systemctl stop $SERVICE_NAME 2>/dev/null || true
 
 # Entpacken
 tar -xzf "$TMP_DIR/app.tar.gz" -C "$INSTALL_DIR"
@@ -73,9 +74,8 @@ EOF
 # systemd reload & start
 systemctl daemon-reexec
 systemctl daemon-reload
-systemctl enable myapp
-systemctl start myapp
+systemctl enable $SERVICE_NAME
+systemctl start $SERVICE_NAME
 
 echo "== Installation complete =="
-echo "Status:"
-systemctl status myapp --no-pager
+systemctl status $SERVICE_NAME --no-pager
