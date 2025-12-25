@@ -41,13 +41,13 @@ fi
 
 # Download
 echo "Downloading $DOWNLOAD_URL"
-curl -L "$DOWNLOAD_URL" -o "$TMP_DIR/CodexzierDirectSight-linux-arm64.tar.gz"
+curl -L "$DOWNLOAD_URL" -o "$TMP_DIR/app.tar.gz"
 
 # Stop Service (falls vorhanden)
 systemctl stop myapp 2>/dev/null || true
 
 # Entpacken
-tar -xzf "$TMP_DIR/CodexzierDirectSight.tar.gz" -C "$INSTALL_DIR"
+tar -xzf "$TMP_DIR/app.tar.gz" -C "$INSTALL_DIR"
 
 chmod +x "$INSTALL_DIR/CodexzierDirectSight"
 
