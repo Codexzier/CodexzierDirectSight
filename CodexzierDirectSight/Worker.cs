@@ -4,6 +4,9 @@ public class Worker(ILogger<Worker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _ = TcpTestServer.StartAsync(stoppingToken, logger);
+        
+        
         while (!stoppingToken.IsCancellationRequested)
         {
             if (logger.IsEnabled(LogLevel.Information))
