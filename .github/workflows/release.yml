@@ -6,7 +6,7 @@ name: Release Codexzier DirectSight
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'release-*.*.*'
 
 permissions:
   contents: write
