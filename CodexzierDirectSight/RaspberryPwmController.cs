@@ -133,29 +133,57 @@ namespace CodexzierDirectSight
         {
             public static IPwmChannelWrapper Create(int chip, int channel)
             {
-                // Versuche, den echten System.Device.Pwm.PwmChannel Typ per Reflection zu laden
-                var pwmType = Type.GetType("System.Device.Pwm.PwmChannel, System.Device.Pwm");
-                if (pwmType == null)
+                try
                 {
-                    // Fallback: Paket nicht installiert. Verwende No-op Implementierung.
+                    // Versuche, den echten System.Device.Pwm.PwmChannel Typ per Reflection zu laden
+                    var pwmType = Type.GetType("System.Device.Pwm.PwmChannel, System.Device.Pwm");
+                    if (pwmType == null)
+                    {
+                        // Fallback: Paket nicht installiert. Verwende No-op Implementierung.
+                        Console.WriteLine("[RaspberryPwmController] System.Device.Pwm.PwmChannel type not found. Ensure 'System.Device.Pwm' (or appropriate IoT packages) is installed.");
+                        return new NoOpPwmChannelWrapper();
+                    }
+
+                    // Finde die statische Create-Methode: Create(int chip, int channel, double frequency, double dutyCycle)
+                    var createMethod = pwmType.GetMethod("Create", BindingFlags.Public | BindingFlags.Static, null,
+                        new Type[] { typeof(int), typeof(int), typeof(double), typeof(double) }, null);
+
+                    if (createMethod == null)
+                    {
+                        Console.WriteLine("[RaspberryPwmController] PwmChannel.Create method not found on type 'System.Device.Pwm.PwmChannel'. Using no-op fallback.");
+                        return new NoOpPwmChannelWrapper();
+                    }
+
+                    // Erzeuge Instanz
+                    object? instance = null;
+                    try
+                    {
+                        instance = createMethod.Invoke(null, new object[] { chip, channel, Frequency, 0.0 });
+                    }
+                    catch (TargetInvocationException tie)
+                    {
+                        Console.WriteLine($"[RaspberryPwmController] Exception while invoking PwmChannel.Create: {tie.InnerException?.Message ?? tie.Message}");
+                        return new NoOpPwmChannelWrapper();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[RaspberryPwmController] Unexpected exception invoking PwmChannel.Create: {ex.Message}");
+                        return new NoOpPwmChannelWrapper();
+                    }
+
+                    if (instance == null)
+                    {
+                        Console.WriteLine("[RaspberryPwmController] PwmChannel.Create returned null. Using no-op fallback.");
+                        return new NoOpPwmChannelWrapper();
+                    }
+
+                    return new ReflectionPwmChannelWrapper(instance, pwmType);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[RaspberryPwmController] Unexpected error in PwmChannelFactory.Create: {ex.Message}");
                     return new NoOpPwmChannelWrapper();
                 }
-
-                // Finde die statische Create-Methode: Create(int chip, int channel, double frequency, double dutyCycle)
-                var createMethod = pwmType.GetMethod("Create", BindingFlags.Public | BindingFlags.Static, null,
-                    new Type[] { typeof(int), typeof(int), typeof(double), typeof(double) }, null);
-
-                if (createMethod == null)
-                {
-                    // Methode nicht gefunden -> Fallback
-                    return new NoOpPwmChannelWrapper();
-                }
-
-                // Erzeuge Instanz
-                var instance = createMethod.Invoke(null, new object[] { chip, channel, Frequency, 0.0 });
-                if (instance == null) return new NoOpPwmChannelWrapper();
-
-                return new ReflectionPwmChannelWrapper(instance, pwmType);
             }
         }
 
