@@ -30,10 +30,16 @@ namespace CodexzierDirectSight
         private readonly IPwmChannelWrapper _channel2;
         private bool _disposed;
 
+        // Gibt an, ob echte PWM-Hardware (kein No-op-Fallback) verwendet wird
+        public bool IsHardwareAvailable { get; }
+
         public RaspberryPwmController(int chip, int channel1, int channel2)
         {
             _channel1 = PwmChannelFactory.Create(chip, channel1);
             _channel2 = PwmChannelFactory.Create(chip, channel2);
+
+            // Wenn beide Wrapper echte Hardware verwenden, gilt Hardware als vorhanden
+            IsHardwareAvailable = _channel1.IsReal && _channel2.IsReal;
 
             _channel1.Start();
             _channel2.Start();
@@ -49,6 +55,49 @@ namespace CodexzierDirectSight
         {
             ThrowIfDisposed();
             SetPulseMs(_channel2, pulseMs);
+        }
+
+        // Neue Try-Methoden liefern Erfolg/Fehler-Meldung
+        public bool TrySetPulseMsChannel1(double pulseMs, out string? error)
+        {
+            error = null;
+            if (!IsHardwareAvailable)
+            {
+                error = "PWM hardware not available";
+                return false;
+            }
+
+            try
+            {
+                SetPulseMsChannel1(pulseMs);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        public bool TrySetPulseMsChannel2(double pulseMs, out string? error)
+        {
+            error = null;
+            if (!IsHardwareAvailable)
+            {
+                error = "PWM hardware not available";
+                return false;
+            }
+
+            try
+            {
+                SetPulseMsChannel2(pulseMs);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
         }
 
         private static void SetPulseMs(IPwmChannelWrapper channel, double pulseMs)
@@ -68,8 +117,8 @@ namespace CodexzierDirectSight
         {
             if (_disposed) return;
             _disposed = true;
-            try { _channel1?.Stop(); _channel1?.Dispose(); } catch { }
-            try { _channel2?.Stop(); _channel2?.Dispose(); } catch { }
+            try { _channel1.Stop(); _channel1.Dispose(); } catch { }
+            try { _channel2.Stop(); _channel2.Dispose(); } catch { }
         }
 
         private interface IPwmChannelWrapper : IDisposable
@@ -77,6 +126,7 @@ namespace CodexzierDirectSight
             void Start();
             void Stop();
             void SetDutyCycle(double duty);
+            bool IsReal { get; }
         }
 
         private static class PwmChannelFactory
@@ -91,35 +141,28 @@ namespace CodexzierDirectSight
                     return new NoOpPwmChannelWrapper();
                 }
 
-                try
+                // Finde die statische Create-Methode: Create(int chip, int channel, double frequency, double dutyCycle)
+                var createMethod = pwmType.GetMethod("Create", BindingFlags.Public | BindingFlags.Static, null,
+                    new Type[] { typeof(int), typeof(int), typeof(double), typeof(double) }, null);
+
+                if (createMethod == null)
                 {
-                    // Finde die statische Create-Methode: Create(int chip, int channel, double frequency, double dutyCycle)
-                    var createMethod = pwmType.GetMethod("Create", BindingFlags.Public | BindingFlags.Static, null,
-                        new Type[] { typeof(int), typeof(int), typeof(double), typeof(double) }, null);
-
-                    if (createMethod == null)
-                    {
-                        // Methode nicht gefunden -> Fallback
-                        return new NoOpPwmChannelWrapper();
-                    }
-
-                    // Erzeuge Instanz
-                    var instance = createMethod.Invoke(null, new object[] { chip, channel, Frequency, 0.0 });
-                    if (instance == null) return new NoOpPwmChannelWrapper();
-
-                    return new ReflectionPwmChannelWrapper(instance, pwmType);
-                }
-                catch
-                {
-                    // Auf jedem Fehler Fallback
+                    // Methode nicht gefunden -> Fallback
                     return new NoOpPwmChannelWrapper();
                 }
+
+                // Erzeuge Instanz
+                var instance = createMethod.Invoke(null, new object[] { chip, channel, Frequency, 0.0 });
+                if (instance == null) return new NoOpPwmChannelWrapper();
+
+                return new ReflectionPwmChannelWrapper(instance, pwmType);
             }
         }
 
         private sealed class NoOpPwmChannelWrapper : IPwmChannelWrapper
         {
             private double _duty;
+            public bool IsReal => false;
             public void Dispose() { }
             public void Start() { }
             public void Stop() { }
@@ -143,24 +186,28 @@ namespace CodexzierDirectSight
                 _dutyProp = pwmType.GetProperty("DutyCycle");
             }
 
+            public bool IsReal => true;
+
             public void Dispose()
             {
-                try { _disposeMethod?.Invoke(_instance, null); } catch { }
+                // Rethrow exceptions to allow caller to detect errors
+                _disposeMethod?.Invoke(_instance, null);
             }
 
             public void Start()
             {
-                try { _startMethod?.Invoke(_instance, null); } catch { }
+                _startMethod?.Invoke(_instance, null);
             }
 
             public void Stop()
             {
-                try { _stopMethod?.Invoke(_instance, null); } catch { }
+                _stopMethod?.Invoke(_instance, null);
             }
 
             public void SetDutyCycle(double duty)
             {
-                try { _dutyProp?.SetValue(_instance, duty); } catch { }
+                if (_dutyProp == null) throw new InvalidOperationException("DutyCycle property not found on PwmChannel type");
+                _dutyProp.SetValue(_instance, duty);
             }
         }
     }

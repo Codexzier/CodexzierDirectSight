@@ -102,30 +102,52 @@ namespace CodexzierDirectSight
                     logger.LogInformation("Received ControlData: Servo1={Servo1}, Servo2={Servo2}, Text={Text}", incoming.Servo1, incoming.Servo2, incoming.Text);
 
                     // Wenn ein PWM-Controller vorhanden ist, setze die Servos anhand des gemappten Pulses
+                    List<string> pwmErrors = new();
                     if (pwmController != null)
                     {
                         // Mappe eingehende Werte intelligent auf Millisekunden
                         double pulseMs1 = MapServoValueToMs(incoming.Servo1);
                         double pulseMs2 = MapServoValueToMs(incoming.Servo2);
 
-                        try
+                        if (!pwmController.IsHardwareAvailable)
                         {
-                            pwmController.SetPulseMsChannel1(pulseMs1);
-                            pwmController.SetPulseMsChannel2(pulseMs2);
-                            logger.LogDebug("Set PWM pulses: ch1={Pulse1}ms, ch2={Pulse2}ms", pulseMs1, pulseMs2);
+                            var msg = "PWM hardware not available";
+                            pwmErrors.Add(msg);
+                            logger.LogWarning(msg);
+                            Console.WriteLine(msg);
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            logger.LogError(ex, "Fehler beim Setzen der PWM-Signale");
+                            if (!pwmController.TrySetPulseMsChannel1(pulseMs1, out var err1))
+                            {
+                                var msg = $"PWM ch1 error: {err1}";
+                                pwmErrors.Add(msg);
+                                logger.LogError(msg);
+                                Console.WriteLine(msg);
+                            }
+
+                            if (!pwmController.TrySetPulseMsChannel2(pulseMs2, out var err2))
+                            {
+                                var msg = $"PWM ch2 error: {err2}";
+                                pwmErrors.Add(msg);
+                                logger.LogError(msg);
+                                Console.WriteLine(msg);
+                            }
                         }
                     }
 
-                    // Als Antwort senden wir ein Ack zurück.
+                    // Als Antwort senden wir ein Ack zurück. Falls PWM-Fehler aufgetreten sind, hängen wir diese an den Text an.
+                    var ackText = $"ACK {DateTime.UtcNow:O}";
+                    if (pwmErrors.Count > 0)
+                    {
+                        ackText += " | PWM_ERR: " + string.Join("; ", pwmErrors);
+                    }
+
                     var response = new ControlData
                     {
                         Servo1 = incoming.Servo1,
                         Servo2 = incoming.Servo2,
-                        Text = $"ACK {DateTime.UtcNow:O}"
+                        Text = ackText
                     };
 
                     await writer.WriteLineAsync(response.Serialize());
