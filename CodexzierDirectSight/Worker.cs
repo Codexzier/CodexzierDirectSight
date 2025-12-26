@@ -6,15 +6,12 @@ public class Worker(ILogger<Worker> logger) : BackgroundService
     {
         _ = TcpTestServer.StartAsync(stoppingToken, logger);
         
-        
         while (!stoppingToken.IsCancellationRequested)
         {
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
             }
-            
-            Console.WriteLine("Hello, World!");
 
             await Task.Delay(1000, stoppingToken);
         }
