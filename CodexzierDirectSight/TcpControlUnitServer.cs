@@ -5,6 +5,8 @@ using System.Text.Json;
 
 namespace CodexzierDirectSight
 {
+    // ControlData ist in ControlData.cs definiert; hier verwenden wir die gemeinsame Klasse.
+
     /// <summary>
     /// TCP-Server für die Steuer-Einheit. Kommuniziert UTF-8-codierte JSON-Nachrichten.
     /// Pro Nachricht wird eine JSON-Zeile (mit Newline) erwartet. Eingehende Daten werden
@@ -15,7 +17,7 @@ namespace CodexzierDirectSight
     {
         private const int Port = 5001; // anderer Port als der Test-Server
 
-        public static async Task StartAsync(CancellationToken stoppingToken, ILogger logger)
+        public static async Task StartAsync(CancellationToken stoppingToken, ILogger logger, RaspberryPwmController? pwmController = null)
         {
             if (logger == null) throw new ArgumentNullException(nameof(logger));
 
@@ -30,7 +32,7 @@ namespace CodexzierDirectSight
                     if (listener.Pending())
                     {
                         var client = await listener.AcceptTcpClientAsync(stoppingToken);
-                        _ = HandleClientAsync(client, logger);
+                        _ = HandleClientAsync(client, logger, pwmController);
                     }
                     else
                     {
@@ -48,7 +50,7 @@ namespace CodexzierDirectSight
             }
         }
 
-        private static async Task HandleClientAsync(TcpClient client, ILogger logger)
+        private static async Task HandleClientAsync(TcpClient client, ILogger logger, RaspberryPwmController? pwmController)
         {
             if (logger == null) throw new ArgumentNullException(nameof(logger));
 
@@ -99,7 +101,25 @@ namespace CodexzierDirectSight
 
                     logger.LogInformation("Received ControlData: Servo1={Servo1}, Servo2={Servo2}, Text={Text}", incoming.Servo1, incoming.Servo2, incoming.Text);
 
-                    // Hier kann die Verarbeitung der Servo-Werte stattfinden (z.B. an Hardware weiterleiten).
+                    // Wenn ein PWM-Controller vorhanden ist, setze die Servos anhand des gemappten Pulses
+                    if (pwmController != null)
+                    {
+                        // Mappe eingehende Werte intelligent auf Millisekunden
+                        double pulseMs1 = MapServoValueToMs(incoming.Servo1);
+                        double pulseMs2 = MapServoValueToMs(incoming.Servo2);
+
+                        try
+                        {
+                            pwmController.SetPulseMsChannel1(pulseMs1);
+                            pwmController.SetPulseMsChannel2(pulseMs2);
+                            logger.LogDebug("Set PWM pulses: ch1={Pulse1}ms, ch2={Pulse2}ms", pulseMs1, pulseMs2);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "Fehler beim Setzen der PWM-Signale");
+                        }
+                    }
+
                     // Als Antwort senden wir ein Ack zurück.
                     var response = new ControlData
                     {
@@ -129,6 +149,34 @@ namespace CodexzierDirectSight
                 logger.LogInformation("Client disconnected");
             }
         }
+
+        // Mapping-Regeln (angenommen):
+        // - Wenn value in [0,180] => interpretiere als Winkel (Grad) und mappe linear auf [1ms,2ms]
+        // - Wenn value in [1000,2000] => interpretiere als Mikrosekunden und wandle in ms um
+        // - Wenn value in [1,2] => interpretiere direkt als ms
+        // - Sonst: clamp in den Bereich [1ms,2ms]
+        private static double MapServoValueToMs(int value)
+        {
+            if (value >= 0 && value <= 180)
+            {
+                // Winkel -> ms
+                return 1.0 + (value / 180.0) * 1.0; // 0deg ->1ms, 180deg ->2ms
+            }
+
+            if (value >= 1000 && value <= 2000)
+            {
+                // Mikrosekunden -> ms
+                return value / 1000.0;
+            }
+
+            if (value >= 1 && value <= 2)
+            {
+                // Millisekunden als integer
+                return (double)value;
+            }
+
+            // Fallback: clamp
+            return Math.Clamp(value, 1.0, 2.0);
+        }
     }
 }
-
